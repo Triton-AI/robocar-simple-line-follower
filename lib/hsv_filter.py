@@ -111,24 +111,24 @@ class detectLine(JSONManager):
 
         for c in cnts:
             area = cv2.contourArea(c)
-            print(f'Contour area: {area}')
+            # print(f'Contour area: {area}')
             if area > max_area:
                 max_area = area
                 max_area_contour = c
 
         if max_area_contour is not None:
             x, y, w, h = cv2.boundingRect(max_area_contour)
-            print(f'Bounding box coordinates: x={x}, y={y}, width={w}, height={h}')
+            # print(f'Bounding box coordinates: x={x}, y={y}, width={w}, height={h}')
             cX = x + w // 2
             cY = y + h // 2
             center_point = (cX-(centroidX-cX), cY)
+            frame = cv2.line(frame, (frame.shape[0] // 2, frame.shape[1]), center_point, (255,0,0), 9) 
             cv2.drawContours(frame, [max_area_contour], -1, (0, 255, 0), 2)
             cv2.circle(frame,center_point , 7, (255, 255, 255), -1)
             cv2.putText(frame, "center", (cX-(centroidX-cX) - 20, cY - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-            frame = cv2.line(frame, (frame.shape[0] // 2, frame.shape[1]), center_point, (255,0,0), 9) 
 
         if self.calibration_mode and (centroidX is not None) and (centroidY is not None):
-            print(f"{centroidX}, {centroidY}")
+            # print(f"{centroidX}, {centroidY}")
             cv2.circle(frame, (centroidX, centroidY), 5, (255, 255, 255), -1)
             cv2.putText(frame, "centroid", (centroidX - 25, centroidY - 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
             cv2.drawContours(frame, contours=cnts, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv2.LINE_AA)
@@ -173,6 +173,6 @@ class detectLine(JSONManager):
     def run(self):
         frame, mask, steering, throttle, cnts, centroidX, centroidY = self.detect_line()
         if frame is not None:  # Check if frame is not None
-            # print(f'Steering: {steering}, Throttle: {throttle}')
+            print(f'Steering: {steering}, Throttle: {throttle}')
             frame_with_annotations = self.draw_annotations(frame, cnts, centroidX, centroidY)
             self.show_frame(frame_with_annotations, mask)
