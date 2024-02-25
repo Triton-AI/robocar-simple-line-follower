@@ -1,5 +1,7 @@
 import cv2
 import depthai as dai
+import imutils
+from .hsv_filter import detectLine
 
 class BaseCamera():
     def __init__(self, img):
@@ -10,6 +12,35 @@ class BaseCamera():
         pass
     def __del__():
         pass
+
+class VideoCamera(BaseCamera):
+    def __init__(self, path):
+        self.video = cv2.VideoCapture(path)
+        if not self.video.isOpened():
+            raise ValueError("Unable to open video file: {}".format(path))
+        self.line_detector = detectLine(self)  
+        
+    def get_frame(self):
+        ret, frame = self.video.read()
+        if not ret:
+            return None
+        return frame
+
+    def show_frame(self):
+        ret, frame = self.video.read()
+        if ret:
+            annotated_frame = self.annotate_frame(frame)
+            cv2.imshow('frame', annotated_frame)
+            if cv2.waitKey(1) == ord('q'):
+                return False
+            return True
+        else:
+            return False
+    
+    def __del__(self):
+        self.video.release()
+        cv2.destroyAllWindows()
+
 
 class ImageCamera(BaseCamera):
     def __init__(self, path=None, resolution=(300, 300)):
