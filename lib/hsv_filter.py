@@ -1,6 +1,8 @@
 from lib.utils import JSONManager
 import cv2
 import numpy as np
+import imutils
+
 
 class detectLine(JSONManager):
     # Helper functions
@@ -16,23 +18,22 @@ class detectLine(JSONManager):
     def update_bottom_crop(self, value): self.bottom_crop = value/100
     
     def __init__(self, camera, windowName='Camera'):
-        ''' This method is encharged of correctly initiallizing the detect Line objects'''
-        print("Starting... Please wait...")
-
-        self.cX, self.cY = 0, 0
-
-        self.windowName = windowName
-
-        # Inherit parent properties
-        super().__init__()
-
-        # Initialize the Oak-D camera
         self.camera = camera
+        self.windowName = windowName
+        self.maskWindowName = 'Mask'
+        self.cX, self.cY = 0, 0
+        self.frame = self._capture_frame()
+        self.steering, self.throttle = 0, 0
+        super().__init__()
+        self._initialize_calibration()
+
+
+    def _initialize_calibration(self):
 
         if self.calibration_mode:
             # Create named windows
-            cv2.namedWindow(windowName)
-            cv2.namedWindow('Mask')
+            cv2.namedWindow(self.windowName)
+            cv2.namedWindow(self.maskWindowName)
 
             # Create trackbars
             cv2.createTrackbar('Lower Hue', 'Mask', self.lower_hue, 254, self.update_lower_hue)
@@ -52,19 +53,24 @@ class detectLine(JSONManager):
             cv2.createTrackbar('Top Crop', 'Mask', int(self.top_crop*100), 100, self.update_top_crop)
             cv2.createTrackbar('Bottom Crop', 'Mask', int(self.bottom_crop*100), 100, self.update_bottom_crop)
 
-        print("Done initializing...")
+    def _capture_frame(self):
+        return np.copy(self.camera.get_frame())
 
-    def get_actuator_values(self):
-        ''' Update image from video source and fid centroid of mask.'''
+    def _find_contours(self, mask):
+        cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        return imutils.grab_contours(cnts)
+    
+    def _calculate_centroid(self, mask):
+        M = cv2.moments(mask)
+        print(M["m00"])
+        if M["m00"] != 0:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            return cX, cY
+        return None, None
 
-        # Capture new image from source
-        self.frame = np.copy(self.camera.get_frame())
-        mask = self.filter_frame()
-
-        self.moment_search(mask) # Sets self.cX, self.cY
-
-        # Print translate to steering and throttle
-        if self.cX is not None and self.cY is not None:
+    def _calculate_actuator_values(self, cX, cY):
+        if cX is not None and cY is not None:
             # Limit the steering angle from 0 to 1
             self.steering = max(min(1-(self.frame.shape[1]-self.cX)/(self.frame.shape[1]),1),0)
 
@@ -79,21 +85,57 @@ class detectLine(JSONManager):
                 self.throttle = max(2*self.max_throttle*self.throttle,self.min_throttle)
             else:
                 self.throttle = 0.0
-
-            
-
-        if self.calibration_mode:
-            # Show centroid on image
-            cv2.circle(self.frame, (self.cX, self.cY), 5, (255, 255, 255), -1)
-            cv2.putText(self.frame, "centroid", (self.cX - 25, self.cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-            
-            # Show windows
-            cv2.imshow(self.windowName, self.frame)
-            cv2.imshow('Mask', mask)
-
         return self.steering, self.throttle
 
-    def filter_frame(self):
+    def detect_line(self):
+        ''' Update image from video source and fid centroid of mask.'''
+
+        # Capture new image from source
+        frame = self._capture_frame()
+        mask = self._filter_frame()
+        cnts = self._find_contours(mask)
+        centroidX, centroidY = self._calculate_centroid(mask)
+        print(f"{centroidX, centroidY}")
+        steering, throttle = self._calculate_actuator_values(centroidX, centroidY)
+
+        return frame, mask, steering, throttle, cnts, centroidX, centroidY
+
+        # self.cX = int(self.frame.shape[0] / 2 - (self.cX - self.frame.shape[0] / 2))
+    
+
+    def draw_annotations(self, frame, cnts, centroidX, centroidY):
+        frame = np.array(frame, dtype=np.uint8)
+        # Draw centroids and contours on the frame
+        max_area_contour = None
+        max_area = -1
+
+        for c in cnts:
+            area = cv2.contourArea(c)
+            print(f'Contour area: {area}')
+            if area > max_area:
+                max_area = area
+                max_area_contour = c
+
+        if max_area_contour is not None:
+            x, y, w, h = cv2.boundingRect(max_area_contour)
+            print(f'Bounding box coordinates: x={x}, y={y}, width={w}, height={h}')
+            cX = x + w // 2
+            cY = y + h // 2
+            center_point = (cX-(centroidX-cX), cY)
+            cv2.drawContours(frame, [max_area_contour], -1, (0, 255, 0), 2)
+            cv2.circle(frame,center_point , 7, (255, 255, 255), -1)
+            cv2.putText(frame, "center", (cX-(centroidX-cX) - 20, cY - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            frame = cv2.line(frame, (frame.shape[0] // 2, frame.shape[1]), center_point, (255,0,0), 9) 
+
+        if self.calibration_mode and (centroidX is not None) and (centroidY is not None):
+            print(f"{centroidX}, {centroidY}")
+            cv2.circle(frame, (centroidX, centroidY), 5, (255, 255, 255), -1)
+            cv2.putText(frame, "centroid", (centroidX - 25, centroidY - 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            cv2.drawContours(frame, contours=cnts, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv2.LINE_AA)
+        cv2.imshow(self.windowName, frame)
+        return frame
+    
+    def _filter_frame(self):
         mask = self.hsv_filter(self.frame)
 
         if self.invert_mask:
@@ -114,17 +156,6 @@ class detectLine(JSONManager):
 
         return mask
 
-    def moment_search(self, mask):
-        '''Calculate the centroid of the mask'''
-        # Calculate the moments of the mask
-        M = cv2.moments(mask)
-        # Calculate x,y coordinate of center
-        if M["m00"] != 0:
-            self.cX = int(M["m10"] / M["m00"])
-            self.cY = int(M["m01"] / M["m00"])     
-
-        return self.cX, self.cY
-
     def hsv_filter(self, frame):
         ''' This method is encharged of searching for the line in the HSV color space'''
         # Convert BGR to HSV
@@ -133,4 +164,15 @@ class detectLine(JSONManager):
                                 (self.upper_hue, self.upper_sat, self.upper_val))
     
         return mask
- 
+
+    def show_frame(self, frame, mask):
+        cv2.imshow(self.windowName, frame)
+        cv2.imshow(self.maskWindowName, mask)
+        cv2.waitKey(1)
+
+    def run(self):
+        frame, mask, steering, throttle, cnts, centroidX, centroidY = self.detect_line()
+        if frame is not None:  # Check if frame is not None
+            # print(f'Steering: {steering}, Throttle: {throttle}')
+            frame_with_annotations = self.draw_annotations(frame, cnts, centroidX, centroidY)
+            self.show_frame(frame_with_annotations, mask)
