@@ -1,23 +1,25 @@
 import cv2
 
-from lib.camera import OAKDCamera, ImageCamera
+from lib.camera import OAKDCamera, ImageCamera, VideoCamera
 from lib.hsv_filter import detectLine
 # from lib.actuator import VESC
        
-IMAGE_TO_TEST = "test_images/straight_lines1.jpg"
+IMAGE_TO_TEST = "test_images/f1-test.png"
 
 camera = ImageCamera(path=IMAGE_TO_TEST)
+
+# VIDEO_TO_TEST = "test_images/f110_fpv.mp4"
+# camera = VideoCamera(path=VIDEO_TO_TEST)
 # vehicle = VESC()
 detector = detectLine(camera)
 while True:
-    
-    steering, throttle = detector.get_actuator_values()
-    print(f'Steering: {steering}, Throttle: {throttle}')
-    # vehicle.run(steering, throttle)
-
-    # Wait for qfilter_frame keypress or KeyboardInterrupt event to occur
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    detector.run()
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord('q'):
+        print("--- Saving Settings ---")
         detector.save_settings() # Choose to save settings if in calibration mode
         if detector.calibration_mode:
             cv2.destroyAllWindows()
         break
+    
+    
