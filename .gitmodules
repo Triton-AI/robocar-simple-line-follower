@@ -1,0 +1,3 @@
+[submodule "multi_cam_oak_lite"]
+	path = multi_cam_oak_lite
+	url = https://github.com/chenyenru/multi_cam_oak_lite.git
