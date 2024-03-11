@@ -4,12 +4,13 @@ from lib.camera import OAKDCamera, ImageCamera, VideoCamera
 from lib.hsv_filter import detectLine
 # from lib.actuator import VESC
        
-IMAGE_TO_TEST = "test_images/f1-test.png"
+IMAGE_TO_TEST = "test_images/f1-test3.png"
 
-camera = ImageCamera(path=IMAGE_TO_TEST)
+# camera = ImageCamera(path=IMAGE_TO_TEST)
 
 # VIDEO_TO_TEST = "test_images/f110_fpv.mp4"
 # camera = VideoCamera(path=VIDEO_TO_TEST)
+camera = OAKDCamera()
 # vehicle = VESC()
 detector = detectLine(camera)
 while True:

@@ -118,7 +118,7 @@ class detectLine(JSONManager):
 
         if max_area_contour is not None:
             x, y, w, h = cv2.boundingRect(max_area_contour)
-            # print(f'Bounding box coordinates: x={x}, y={y}, width={w}, height={h}')
+            print(f'Bounding box coordinates: x={x}, y={y}, width={w}, height={h}')
             cX = x + w // 2
             cY = y + h // 2
             center_point = (cX-(centroidX-cX), cY)
@@ -132,7 +132,8 @@ class detectLine(JSONManager):
             cv2.circle(frame, (centroidX, centroidY), 5, (255, 255, 255), -1)
             cv2.putText(frame, "centroid", (centroidX - 25, centroidY - 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
             cv2.drawContours(frame, contours=cnts, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv2.LINE_AA)
-        cv2.imshow(self.windowName, frame)
+        # cv2.imshow(self.windowName, frame)
+            
         return frame
     
     def _filter_frame(self):
@@ -153,7 +154,7 @@ class detectLine(JSONManager):
         mask[(mask.shape[0]-bottom_crop):mask.shape[0],:] = 0
         mask[:,0:left_crop] = 0
         mask[:,(mask.shape[1]-right_crop):mask.shape[1]] = 0
-
+        cv2.imshow(self.maskWindowName, mask)
         return mask
 
     def hsv_filter(self, frame):
